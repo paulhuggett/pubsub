@@ -21,6 +21,7 @@
 #include <forward_list>
 
 class channel {
+    friend class subscriber;
 public:
     channel () = default;
     channel (channel const & ) = delete;
@@ -30,10 +31,10 @@ public:
 
     void publish (std::string const & message);
 
-    struct subscriber {
+    class subscriber {
         friend class channel;
     public:
-        explicit subscriber (channel * c) : owner {c} {}
+        ~subscriber ();
 
         subscriber (subscriber const & ) = delete;
         subscriber (subscriber && ) = delete;
@@ -41,25 +42,30 @@ public:
         subscriber & operator= (subscriber && ) = delete;
 
         void subscribe (std::function<void(std::string const &)> f) {
-            owner->subscribe (this, f);
+            owner_->subscribe (this, f);
         }
 
     private:
-        bool active = true;
-        std::queue<std::string> queue;
-        channel * owner;
+        explicit subscriber (channel * c) : owner_ {c} {}
+
+        bool active_ = true;
+        std::queue<std::string> queue_;
+        channel * owner_;
     };
 
-
-    subscriber * create_subscriber ();
+    std::unique_ptr<subscriber> create_subscriber ();
     void unsubscribe (subscriber * sub);
+    void unsubscribe (std::unique_ptr<subscriber> const & sub) { unsubscribe (sub.get ()); }
 
-    void subscribe (subscriber * sub, std::function<void(std::string const &)> f);
 
 private:
+    void subscribe (subscriber * sub, std::function<void(std::string const &)> f);
+
+    void remove_sub (subscriber * sub);
+
     std::mutex mut_;
     std::condition_variable cv_;
-    std::forward_list<subscriber> subscribers_;
+    std::forward_list<subscriber *> subscribers_;
 };
 
 // publish
@@ -67,24 +73,25 @@ private:
 void channel::publish (std::string const & message) {
     std::lock_guard<std::mutex> _ {mut_};
     for (auto & sub : subscribers_) {
-        sub.queue.push (message);
+        sub->queue_.push (message);
     }
     cv_.notify_all ();
 }
 
 // create_subscriber
 // ~~~~~~~~~~~~~~~~~
-channel::subscriber * channel::create_subscriber () {
+std::unique_ptr<channel::subscriber> channel::create_subscriber () {
     std::lock_guard<std::mutex> lock {mut_};
-    subscribers_.emplace_front (this);
-    return &subscribers_.front ();
+    auto resl = std::unique_ptr<channel::subscriber> {new subscriber (this)};
+    subscribers_.emplace_front (resl.get ());
+    return resl;
 }
 
 // unsubscribe
 // ~~~~~~~~~~~
 void channel::unsubscribe (subscriber * sub) {
     std::unique_lock<std::mutex> lock {mut_};
-    sub->active = false;
+    sub->active_ = false;
     cv_.notify_all ();
 }
 
@@ -92,12 +99,13 @@ void channel::unsubscribe (subscriber * sub) {
 // ~~~~~~~~~
 void channel::subscribe (subscriber * const sub, std::function<void(std::string const &)> f) {
     std::unique_lock<std::mutex> lock {mut_};
-    while (sub->active) {
+    sub->active_ = true;
+    while (sub->active_) {
         cv_.wait (lock);
 
-        while (sub->active && sub->queue.size () > 0) {
-            std::string const message = std::move (sub->queue.front ());
-            sub->queue.pop ();
+        while (sub->active_ && sub->queue_.size () > 0) {
+            std::string const message = std::move (sub->queue_.front ());
+            sub->queue_.pop ();
 
             // Don't hold the lock whilst the user callback is called: we can't assume
             // that it will return quickly.
@@ -107,27 +115,34 @@ void channel::subscribe (subscriber * const sub, std::function<void(std::string 
         }
     }
 
-    subscribers_.remove_if ([sub] (subscriber & s) { return sub == &s; });
 }
 
+void channel::remove_sub (subscriber * sub) {
+    std::lock_guard<std::mutex> _ {mut_};
+    subscribers_.remove_if ([sub] (subscriber * s) { return sub == s; });
+}
+
+channel::subscriber::~subscriber () {
+    owner_->remove_sub (this);
+}
 
 
 int main (int argc, const char * argv[]) {
     std::mutex cout_mut;
 
-    auto subscription = [&cout_mut] (channel & chan, channel::subscriber * const sub, int id) {
+    auto subscription = [&cout_mut] (channel & chan, channel::subscriber & sub, int id) {
         pthread_setname_np ("sub");
-        sub->subscribe ([id, &cout_mut] (std::string const & message) {
+        sub.subscribe ([id, &cout_mut] (std::string const & message) {
             std::lock_guard<std::mutex> cout_lock {cout_mut};
             std::cout << "sub(" << id << "): " << message << '\n';
         });
     };
 
     channel chan;
-    channel::subscriber * const sub1 = chan.create_subscriber ();
-    channel::subscriber * const sub2 = chan.create_subscriber ();
-    std::thread t1 {subscription, std::ref (chan), sub1, 1};
-    std::thread t2 {subscription, std::ref (chan), sub2, 2};
+    std::unique_ptr<channel::subscriber> sub1 = chan.create_subscriber ();
+    std::unique_ptr<channel::subscriber> sub2 = chan.create_subscriber ();
+    std::thread t1 {subscription, std::ref (chan), std::ref (*sub1), 1};
+    std::thread t2 {subscription, std::ref (chan), std::ref (*sub2), 2};
 
     // Initial sleep waits for the two subscribers to (probably) get to the point where they're
     // actually listening.
