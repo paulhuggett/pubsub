@@ -4,6 +4,7 @@
 #include <condition_variable>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <string>
 #include <thread>
@@ -18,6 +19,8 @@ namespace pubsub {
     //* (_-< || | '_ (_-</ _| '_| | '_ \/ -_) '_| *
     //* /__/\_,_|_.__/__/\__|_| |_|_.__/\___|_|   *
     //*                                           *
+    /// An instance of the subscriber class represents a subscription to messages published on an
+    /// associated owning channel.
     class subscriber {
         friend class channel;
 
@@ -30,25 +33,20 @@ namespace pubsub {
         subscriber & operator= (subscriber const &) = delete;
         subscriber & operator= (subscriber &&) = delete;
 
-        /// \tparam Function A function with a signature compatible with:
-        /// std::function<void(std::string const &)>.
-        /// \param f  A function which will be called when a message is published on the owning
-        /// channel.
-        /// \param args  Arguments that will be passed to f.
-        template <typename Function, typename... Args>
-        void listen_sync (Function f, Args &&... args);
+        // Blocks waiting for a message to be published on the owning channel of for the
+        // subscription to be cancelled.
+        std::optional<std::string> listen ();
 
-        /// \tparam Function A function with a signature compatible with:
-        /// std::function<void(std::string const &)>.
-        /// \param f  A function which will be called when a message is published on the owning
-        /// channel.
-        /// \param args  Arguments that will be passed to f.
-        template <typename Function, typename... Args>
-        std::thread listen (Function f, Args &&... args);
+        /// \returns A reference to the owning channel.
+        channel & owner () noexcept { return *owner_; }
+        /// \returns A reference to the owning channel.
+        channel const & owner () const noexcept { return *owner_; }
 
     private:
-        explicit subscriber (channel * c)
-                : owner_{c} {}
+        explicit subscriber (channel * const c) noexcept
+                : owner_{c} {
+            assert (c != nullptr);
+        }
 
         /// The queue of published messages waiting to be delivered to a listening subscriber.
         ///
@@ -70,11 +68,15 @@ namespace pubsub {
     //* / _| ' \/ _` | ' \| ' \/ -_) | *
     //* \__|_||_\__,_|_||_|_||_\___|_| *
     //*                                *
+    /// Messages can be written ("published") to a channel; there can be multiple "subscribers"
+    /// which will all receive notification of published messages.
     class channel {
         friend class subscriber;
 
     public:
         channel () = default;
+
+        // No copying or assignment.
         channel (channel const &) = delete;
         channel (channel &&) = delete;
         channel & operator= (channel const &) = delete;
@@ -83,17 +85,14 @@ namespace pubsub {
         /// Broadcasts a message to all subscribers.
         void publish (std::string const & message);
 
+        /// Creates a new subscriber instance and attaches it to this channel.
         std::unique_ptr<subscriber> new_subscriber ();
-        void unsubscribe (subscriber & sub) const;
+
+        /// The
+        void cancel (subscriber & sub) const;
 
     private:
-        /// \tparam Function A function with a signature compatible with:
-        /// std::function<void(std::string const &)>.
-        /// \param f  A function which will be called when a message is published on the owning
-        /// channel.
-        /// \param args  Arguments that will be passed to f.
-        template <typename Function, typename... Args>
-        void listen (subscriber * const sub, Function f, Args &&... args);
+        std::optional<std::string> listen (subscriber * const sub);
 
         /// Called when a subscriber is destructed to remove it from the subscribers list.
         void remove_sub (subscriber * sub) noexcept;
@@ -104,49 +103,6 @@ namespace pubsub {
         /// All of the subscribers to this channel.
         std::unordered_set<subscriber *> subscribers_;
     };
-
-    // subscribe
-    // ~~~~~~~~~
-    template <typename Function, typename... Args>
-    void channel::listen (subscriber * const sub, Function f, Args &&... args) {
-        std::unique_lock<std::mutex> lock{mut_};
-        while (sub->active_) {
-            cv_.wait (lock);
-
-            while (sub->active_ && sub->queue_.size () > 0) {
-                std::string const message = std::move (sub->queue_.front ());
-                sub->queue_.pop ();
-
-                // Don't hold the lock whilst the user callback is called: we can't assume
-                // that it will return quickly.
-                lock.unlock ();
-                f (message, std::forward<Args> (args)...);
-                lock.lock ();
-            }
-        }
-    }
-
-    //*          _               _ _              *
-    //*  ____  _| |__ ___ __ _ _(_) |__  ___ _ _  *
-    //* (_-< || | '_ (_-</ _| '_| | '_ \/ -_) '_| *
-    //* /__/\_,_|_.__/__/\__|_| |_|_.__/\___|_|   *
-    //*                                           *
-    // listen_sync
-    // ~~~~~~~~~~~
-    template <typename Function, typename... Args>
-    void subscriber::listen_sync (Function f, Args &&... args) {
-        owner_->listen (this, f, std::forward<Args> (args)...);
-    }
-
-    // listen
-    // ~~~~~~
-    template <typename Function, typename... Args>
-    std::thread subscriber::listen (Function f, Args &&... args) {
-        return std::thread{[this](Function f2, Args... args2) {
-                               this->listen_sync (f2, std::forward<Args> (args2)...);
-                           },
-                           f, std::forward<Args> (args)...};
-    }
 
 } // end namespace pubsub
 

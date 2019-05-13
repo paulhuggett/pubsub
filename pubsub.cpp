@@ -11,6 +11,9 @@ namespace pubsub {
     //*                                           *
     subscriber::~subscriber () noexcept { owner_->remove_sub (this); }
 
+    // listen_sync
+    // ~~~~~~~~~~~
+    std::optional<std::string> subscriber::listen () { return owner_->listen (this); }
 
     //*     _                       _  *
     //*  __| |_  __ _ _ _  _ _  ___| | *
@@ -40,10 +43,12 @@ namespace pubsub {
 
     // unsubscribe
     // ~~~~~~~~~~~
-    void channel::unsubscribe (subscriber & sub) const {
-        std::unique_lock<std::mutex> lock{mut_};
-        sub.active_ = false;
-        cv_.notify_all ();
+    void channel::cancel (subscriber & sub) const {
+        if (&sub.owner () == this) {
+            std::unique_lock<std::mutex> lock{mut_};
+            sub.active_ = false;
+            cv_.notify_all ();
+        }
     }
 
     // remove_sub
@@ -52,6 +57,21 @@ namespace pubsub {
         std::lock_guard<std::mutex> _{mut_};
         assert (subscribers_.find (sub) != subscribers_.end ());
         subscribers_.erase (sub);
+    }
+
+    // subscribe
+    // ~~~~~~~~~
+    std::optional<std::string> channel::listen (subscriber * const sub) {
+        std::unique_lock<std::mutex> lock{mut_};
+        while (sub->active_) {
+            cv_.wait (lock);
+            if (sub->active_ && sub->queue_.size () > 0) {
+                std::string const message = std::move (sub->queue_.front ());
+                sub->queue_.pop ();
+                return message;
+            }
+        }
+        return {};
     }
 
 } // end namespace pubsub
