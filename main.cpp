@@ -5,7 +5,7 @@
 
 #include "pubsub.hpp"
 
-int main (int argc, const char * argv[]) {
+int main (int /*argc*/, char const * /*argv*/[]) {
     std::mutex cout_mut;
     using namespace pubsub;
 
