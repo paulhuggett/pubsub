@@ -22,7 +22,7 @@ namespace {
     };
 
     int counter::increment (int by) {
-        std::lock_guard<std::mutex> _ {mut};
+        std::lock_guard<std::mutex> _{mut};
         count_ += by;
         int result = count_;
         cv_.notify_one ();
@@ -39,32 +39,34 @@ namespace {
 } // end anonymous namespace
 
 int main (int /*argc*/, char const * /*argv*/[]) {
-    std::mutex cout_mut;
     using namespace pubsub;
 
     channel chan;
+
     counter listening_counter;
     counter received_counter;
+
+    std::mutex cout_mut;
     constexpr auto num_subscribers = 2U;
     constexpr auto num_messages = 10U;
 
-    auto get_messages = [&cout_mut, &listening_counter, &received_counter](subscriber * const sub, int id) {
-        listening_counter.increment();
-        while (std::optional<std::string> message = sub->listen ()) {
-            {
-                std::lock_guard<std::mutex> cout_lock{cout_mut};
-                std::cout << "sub(" << id << "): " << *message << '\n';
-            }
-            received_counter.increment();
-        }
-    };
-
     using subscriber_ptr = std::unique_ptr<subscriber>;
-    std::vector <std::tuple <std::unique_ptr<subscriber>, std::thread>> subscribers;
+    std::vector<std::tuple<std::unique_ptr<subscriber>, std::thread>> subscribers;
     subscribers.reserve (num_subscribers);
     for (auto ctr = 0; ctr < num_subscribers; ++ctr) {
         subscriber_ptr ptr = chan.new_subscriber ();
-        std::thread thread{get_messages, ptr.get (), 1};
+        std::thread thread{
+            [&cout_mut, &listening_counter, &received_counter](subscriber * const sub, int id) {
+                listening_counter.increment ();
+                while (std::optional<std::string> message = sub->listen ()) {
+                    {
+                        std::lock_guard<std::mutex> cout_lock{cout_mut};
+                        std::cout << "sub(" << id << "): " << *message << '\n';
+                    }
+                    received_counter.increment ();
+                }
+            },
+            ptr.get (), 1};
         subscribers.emplace_back (std::move (ptr), std::move (thread));
     }
 
