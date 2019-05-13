@@ -10,7 +10,6 @@ int main (int argc, const char * argv[]) {
     using namespace pubsub;
 
     auto subscription = [&cout_mut] (std::string const & message, int id) {
-        pthread_setname_np ("sub");
         std::lock_guard<std::mutex> cout_lock {cout_mut};
         std::cout << "sub(" << id << "): " << message << '\n';
     };
