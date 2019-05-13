@@ -9,8 +9,6 @@
 #include <thread>
 #include <unordered_set>
 
-#include <future>
-
 namespace pubsub {
 
     class channel;
