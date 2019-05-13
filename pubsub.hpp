@@ -2,12 +2,10 @@
 #define PUBSUB_HPP
 
 #include <condition_variable>
-#include <functional>
 #include <mutex>
 #include <optional>
 #include <queue>
 #include <string>
-#include <thread>
 #include <unordered_set>
 
 namespace pubsub {
@@ -33,9 +31,14 @@ namespace pubsub {
         subscriber & operator= (subscriber const &) = delete;
         subscriber & operator= (subscriber &&) = delete;
 
-        // Blocks waiting for a message to be published on the owning channel of for the
-        // subscription to be cancelled.
+        /// Blocks waiting for a message to be published on the owning channel of for the
+        /// subscription to be cancelled.
+        ///
+        /// \returns An optional holding a message published to the owning channel or with no value
+        /// indicating that the subscription has been cancelled.
         std::optional<std::string> listen ();
+
+        void cancel ();
 
         /// \returns A reference to the owning channel.
         channel & owner () noexcept { return *owner_; }
@@ -75,6 +78,7 @@ namespace pubsub {
 
     public:
         channel () = default;
+        ~channel () noexcept;
 
         // No copying or assignment.
         channel (channel const &) = delete;

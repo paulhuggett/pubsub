@@ -11,15 +11,22 @@ namespace pubsub {
     //*                                           *
     subscriber::~subscriber () noexcept { owner_->remove_sub (this); }
 
-    // listen_sync
-    // ~~~~~~~~~~~
+    // listen
+    // ~~~~~~
     std::optional<std::string> subscriber::listen () { return owner_->listen (this); }
+
+    void subscriber::cancel () { this->owner ().cancel (*this); }
 
     //*     _                       _  *
     //*  __| |_  __ _ _ _  _ _  ___| | *
     //* / _| ' \/ _` | ' \| ' \/ -_) | *
     //* \__|_||_\__,_|_||_|_||_\___|_| *
     //*                                *
+    channel::~channel () noexcept {
+        // Check that this channel has no subscribers.
+        assert (subscribers_.empty ());
+    }
+
     // publish
     // ~~~~~~~
     void channel::publish (std::string const & message) {
@@ -64,8 +71,9 @@ namespace pubsub {
     std::optional<std::string> channel::listen (subscriber * const sub) {
         std::unique_lock<std::mutex> lock{mut_};
         while (sub->active_) {
-            cv_.wait (lock);
-            if (sub->active_ && sub->queue_.size () > 0) {
+            if (sub->queue_.size () == 0) {
+                cv_.wait (lock);
+            } else {
                 std::string const message = std::move (sub->queue_.front ());
                 sub->queue_.pop ();
                 return message;
