@@ -20,37 +20,48 @@ namespace pubsub {
     //*                                           *
     class subscriber {
         friend class channel;
+
     public:
         ~subscriber () noexcept;
 
         // No copying or assignment.
-        subscriber (subscriber const & ) = delete;
-        subscriber (subscriber && ) = delete;
-        subscriber & operator= (subscriber const & ) = delete;
-        subscriber & operator= (subscriber && ) = delete;
+        subscriber (subscriber const &) = delete;
+        subscriber (subscriber &&) = delete;
+        subscriber & operator= (subscriber const &) = delete;
+        subscriber & operator= (subscriber &&) = delete;
 
-        /// \tparam Function A function with a signature compatible with: std::function<void(std::string const &)>.
-        /// \param f  A function which will be called when a message is published on the owning channel.
+        /// \tparam Function A function with a signature compatible with:
+        /// std::function<void(std::string const &)>.
+        /// \param f  A function which will be called when a message is published on the owning
+        /// channel.
         /// \param args  Arguments that will be passed to f.
-        template <typename Function, typename ...Args>
-        void listen_sync (Function f, Args && ...args);
+        template <typename Function, typename... Args>
+        void listen_sync (Function f, Args &&... args);
 
-        /// \tparam Function A function with a signature compatible with: std::function<void(std::string const &)>.
-        /// \param f  A function which will be called when a message is published on the owning channel.
+        /// \tparam Function A function with a signature compatible with:
+        /// std::function<void(std::string const &)>.
+        /// \param f  A function which will be called when a message is published on the owning
+        /// channel.
         /// \param args  Arguments that will be passed to f.
-        template <typename Function, typename ...Args>
-        std::thread listen (Function f, Args && ...args);
+        template <typename Function, typename... Args>
+        std::thread listen (Function f, Args &&... args);
 
     private:
-        explicit subscriber (channel * c) : owner_ {c} {}
+        explicit subscriber (channel * c)
+                : owner_{c} {}
 
         /// The queue of published messages waiting to be delivered to a listening subscriber.
+        ///
         /// \note This is a queue of strings. If there are multiple subscribers to this channel then
         /// the strings will be duplicated in each which could be very inefficient. An alternative
         /// would be to store shared_ptr<string>. For the moment I'm leaving it like this on the
         /// assumption that there will typically be just a single subscriber.
         std::queue<std::string> queue_;
+
+        /// The channel with which this subscription is associated.
         channel * const owner_;
+
+        /// Should this subscriber continue to listen to messages?
         bool active_ = true;
     };
 
@@ -61,12 +72,13 @@ namespace pubsub {
     //*                                *
     class channel {
         friend class subscriber;
+
     public:
         channel () = default;
-        channel (channel const & ) = delete;
-        channel (channel && ) = delete;
-        channel & operator= (channel const & ) = delete;
-        channel & operator= (channel && ) = delete;
+        channel (channel const &) = delete;
+        channel (channel &&) = delete;
+        channel & operator= (channel const &) = delete;
+        channel & operator= (channel &&) = delete;
 
         /// Broadcasts a message to all subscribers.
         void publish (std::string const & message);
@@ -75,23 +87,29 @@ namespace pubsub {
         void unsubscribe (subscriber & sub) const;
 
     private:
-        /// \tparam Function A function with a signature compatible with: std::function<void(std::string const &)>.
-        /// \param f  A function which will be called when a message is published on the owning channel.
-        template <typename Function, typename ...Args>
-        void listen (subscriber * const sub, Function f, Args && ...args);
+        /// \tparam Function A function with a signature compatible with:
+        /// std::function<void(std::string const &)>.
+        /// \param f  A function which will be called when a message is published on the owning
+        /// channel.
+        /// \param args  Arguments that will be passed to f.
+        template <typename Function, typename... Args>
+        void listen (subscriber * const sub, Function f, Args &&... args);
 
+        /// Called when a subscriber is destructed to remove it from the subscribers list.
         void remove_sub (subscriber * sub) noexcept;
 
         mutable std::mutex mut_;
         mutable std::condition_variable cv_;
+
+        /// All of the subscribers to this channel.
         std::unordered_set<subscriber *> subscribers_;
     };
 
     // subscribe
     // ~~~~~~~~~
-    template <typename Function, typename ...Args>
-    void channel::listen (subscriber * const sub, Function f, Args && ...args) {
-        std::unique_lock<std::mutex> lock {mut_};
+    template <typename Function, typename... Args>
+    void channel::listen (subscriber * const sub, Function f, Args &&... args) {
+        std::unique_lock<std::mutex> lock{mut_};
         while (sub->active_) {
             cv_.wait (lock);
 
@@ -115,18 +133,19 @@ namespace pubsub {
     //*                                           *
     // listen_sync
     // ~~~~~~~~~~~
-    template <typename Function, typename ...Args>
-    void subscriber::listen_sync (Function f, Args && ...args) {
+    template <typename Function, typename... Args>
+    void subscriber::listen_sync (Function f, Args &&... args) {
         owner_->listen (this, f, std::forward<Args> (args)...);
     }
 
     // listen
     // ~~~~~~
-    template <typename Function, typename ...Args>
-    std::thread subscriber::listen (Function f, Args && ...args) {
-        return std::thread {[this] (Function f2, Args ...args2) {
-            this->listen_sync (f2, std::forward<Args> (args2)...);
-        }, f, std::forward<Args> (args)...};
+    template <typename Function, typename... Args>
+    std::thread subscriber::listen (Function f, Args &&... args) {
+        return std::thread{[this](Function f2, Args... args2) {
+                               this->listen_sync (f2, std::forward<Args> (args2)...);
+                           },
+                           f, std::forward<Args> (args)...};
     }
 
 } // end namespace pubsub

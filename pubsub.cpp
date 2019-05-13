@@ -9,9 +9,7 @@ namespace pubsub {
     //* (_-< || | '_ (_-</ _| '_| | '_ \/ -_) '_| *
     //* /__/\_,_|_.__/__/\__|_| |_|_.__/\___|_|   *
     //*                                           *
-    subscriber::~subscriber () noexcept {
-        owner_->remove_sub (this);
-    }
+    subscriber::~subscriber () noexcept { owner_->remove_sub (this); }
 
 
     //*     _                       _  *
@@ -22,7 +20,7 @@ namespace pubsub {
     // publish
     // ~~~~~~~
     void channel::publish (std::string const & message) {
-        std::lock_guard<std::mutex> _ {mut_};
+        std::lock_guard<std::mutex> _{mut_};
         if (subscribers_.size () > 0) {
             for (auto & sub : subscribers_) {
                 sub->queue_.push (message);
@@ -34,8 +32,8 @@ namespace pubsub {
     // new_subscriber
     // ~~~~~~~~~~~~~~
     std::unique_ptr<subscriber> channel::new_subscriber () {
-        std::lock_guard<std::mutex> lock {mut_};
-        auto resl = std::unique_ptr<subscriber> {new subscriber (this)};
+        std::lock_guard<std::mutex> lock{mut_};
+        auto resl = std::unique_ptr<subscriber>{new subscriber (this)};
         subscribers_.insert (resl.get ());
         return resl;
     }
@@ -43,7 +41,7 @@ namespace pubsub {
     // unsubscribe
     // ~~~~~~~~~~~
     void channel::unsubscribe (subscriber & sub) const {
-        std::unique_lock<std::mutex> lock {mut_};
+        std::unique_lock<std::mutex> lock{mut_};
         sub.active_ = false;
         cv_.notify_all ();
     }
@@ -51,7 +49,7 @@ namespace pubsub {
     // remove_sub
     // ~~~~~~~~~~
     void channel::remove_sub (subscriber * sub) noexcept {
-        std::lock_guard<std::mutex> _ {mut_};
+        std::lock_guard<std::mutex> _{mut_};
         assert (subscribers_.find (sub) != subscribers_.end ());
         subscribers_.erase (sub);
     }

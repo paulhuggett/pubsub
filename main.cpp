@@ -9,8 +9,8 @@ int main (int /*argc*/, char const * /*argv*/[]) {
     std::mutex cout_mut;
     using namespace pubsub;
 
-    auto subscription = [&cout_mut] (std::string const & message, int id) {
-        std::lock_guard<std::mutex> cout_lock {cout_mut};
+    auto subscription = [&cout_mut](std::string const & message, int id) {
+        std::lock_guard<std::mutex> cout_lock{cout_mut};
         std::cout << "sub(" << id << "): " << message << '\n';
     };
 
@@ -30,7 +30,10 @@ int main (int /*argc*/, char const * /*argv*/[]) {
         chan.publish (os.str ());
     }
 
-    { std::lock_guard<std::mutex> cout_lock {cout_mut}; std::cout << "sleep 2s\n"; }
+    {
+        std::lock_guard<std::mutex> cout_lock{cout_mut};
+        std::cout << "sleep 2s\n";
+    }
     std::this_thread::sleep_for (std::chrono::seconds{2});
     //{ std::lock_guard<std::mutex> cout_lock {cout_mut}; std::cout << "awake\n"; }
 
