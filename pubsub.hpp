@@ -44,6 +44,11 @@ namespace pubsub {
     private:
         explicit subscriber (channel * c) : owner_ {c} {}
 
+        /// The queue of published messages waiting to be delivered to a listening subscriber.
+        /// \note This is a queue of strings. If there are multiple subscribers to this channel then
+        /// the strings will be duplicated in each which could be very inefficient. An alternative
+        /// would be to store shared_ptr<string>. For the moment I'm leaving it like this on the
+        /// assumption that there will typically be just a single subscriber.
         std::queue<std::string> queue_;
         channel * const owner_;
         bool active_ = true;
