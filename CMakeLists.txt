@@ -5,9 +5,9 @@ set (CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package (Threads)
 set (CMAKE_REQUIRED_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
-add_executable (pubsub
-	       publish_and_subscribe/main.cpp
-	       publish_and_subscribe/pubsub.cpp
-	       publish_and_subscribe/pubsub.hpp
-	       )
+add_executable (pubsub main.cpp pubsub.cpp pubsub.hpp)
+set_target_properties (pubsub PROPERTIES
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED Yes
+)
 target_link_libraries (pubsub PRIVATE ${CMAKE_THREAD_LIBS_INIT})
