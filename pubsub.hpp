@@ -38,6 +38,9 @@ namespace pubsub {
         /// indicating that the subscription has been cancelled.
         std::optional<std::string> listen ();
 
+        /// Cancels a subscription.
+        ///
+        /// The subscription is marked as inactive. If waiting it is woken up.
         void cancel ();
 
         /// \returns A reference to the owning channel.
@@ -92,7 +95,9 @@ namespace pubsub {
         /// Creates a new subscriber instance and attaches it to this channel.
         std::unique_ptr<subscriber> new_subscriber ();
 
-        /// The
+        /// Cancels a subscription.
+        ///
+        /// The subscription is marked as inactive. If waiting it is woken up.
         void cancel (subscriber & sub) const;
 
     private:
