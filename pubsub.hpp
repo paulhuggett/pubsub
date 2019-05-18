@@ -1,6 +1,7 @@
 #ifndef PUBSUB_HPP
 #define PUBSUB_HPP
 
+#include <cassert>
 #include <condition_variable>
 #include <mutex>
 #include <optional>

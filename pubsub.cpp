@@ -1,7 +1,5 @@
 #include "pubsub.hpp"
 
-#include <cassert>
-
 namespace pubsub {
 
     //*          _               _ _              *
@@ -15,6 +13,8 @@ namespace pubsub {
     // ~~~~~~
     std::optional<std::string> subscriber::listen () { return owner_->listen (this); }
 
+    // cancel
+    // ~~~~~~
     void subscriber::cancel () { this->owner ().cancel (*this); }
 
     //*     _                       _  *
@@ -48,8 +48,8 @@ namespace pubsub {
         return resl;
     }
 
-    // unsubscribe
-    // ~~~~~~~~~~~
+    // cancel
+    // ~~~~~~
     void channel::cancel (subscriber & sub) const {
         if (&sub.owner () == this) {
             std::unique_lock<std::mutex> lock{mut_};
@@ -66,8 +66,8 @@ namespace pubsub {
         subscribers_.erase (sub);
     }
 
-    // subscribe
-    // ~~~~~~~~~
+    // listen
+    // ~~~~~~
     std::optional<std::string> channel::listen (subscriber * const sub) {
         std::unique_lock<std::mutex> lock{mut_};
         while (sub->active_) {
