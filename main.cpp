@@ -51,7 +51,7 @@ namespace {
 int main (int /*argc*/, char const * /*argv*/[]) {
     using namespace pubsub;
 
-    channel chan;
+    channel<std::string> chan;
 
     counter listening_counter;
     counter received_counter;
@@ -61,16 +61,16 @@ int main (int /*argc*/, char const * /*argv*/[]) {
     constexpr auto num_messages = 100U;
     std::array<counter, num_subscribers> per_subscriber_received_counter;
 
-    using subscriber_ptr = std::unique_ptr<subscriber>;
+    using subscriber_ptr = std::unique_ptr<subscriber<std::string>>;
     std::vector<std::tuple<subscriber_ptr, std::thread>> subscribers;
     subscribers.reserve (num_subscribers);
 
     for (auto sub_ctr = 0U; sub_ctr < num_subscribers; ++sub_ctr) {
         subscriber_ptr ptr = chan.new_subscriber ();
         std::thread thread{
-            [&](subscriber * const sub, int id) {
+            [&](subscriber<std::string> * const sub, int id) {
                 listening_counter.increment ();
-                while (std::optional<std::string> const message = sub->listen ()) {
+                while (std::optional<std::string> const message = sub->wait ()) {
                     {
                         std::lock_guard<std::mutex> cout_lock{cout_mut};
                         std::cout << "sub(" << id << "): " << *message << '\n';
@@ -88,7 +88,7 @@ int main (int /*argc*/, char const * /*argv*/[]) {
 
     // Now post some messages to the channel.
     for (auto message_ctr = 0U; message_ctr < num_messages; ++message_ctr) {
-        //std::this_thread::sleep_for (std::chrono::milliseconds{ctr * 25});
+        std::this_thread::sleep_for (std::chrono::milliseconds{message_ctr * 10});
         std::ostringstream os;
         os << "message " << message_ctr;
         chan.publish (os.str ());
