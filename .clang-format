@@ -1,7 +1,7 @@
 ---
-Language:        Cpp
+# Language:        Cpp
 # BasedOnStyle:  LLVM
-AccessModifierOffset: -4
+AccessModifierOffset: -2
 AlignAfterOpenBracket: true
 AlignEscapedNewlinesLeft: false
 AlignOperands:   true
@@ -32,7 +32,7 @@ IndentFunctionDeclarationAfterType: false
 MaxEmptyLinesToKeep: 3
 KeepEmptyLinesAtTheStartOfBlocks: true
 NamespaceIndentation: All
-ObjCBlockIndentWidth: 4
+ObjCBlockIndentWidth: 2
 ObjCSpaceAfterProperty: false
 ObjCSpaceBeforeProtocolList: true
 PenaltyBreakBeforeFirstCallParameter: 19
@@ -45,7 +45,7 @@ PointerAlignment: Middle
 SpacesBeforeTrailingComments: 1
 Cpp11BracedListStyle: true
 Standard:        Cpp11
-IndentWidth:     4
+IndentWidth:     2
 TabWidth:        8
 UseTab:          Never
 BreakBeforeBraces: Attach
@@ -57,7 +57,7 @@ SpacesInCStyleCastParentheses: false
 SpaceAfterCStyleCast: true
 SpacesInContainerLiterals: true
 SpaceBeforeAssignmentOperators: true
-ContinuationIndentWidth: 4
+ContinuationIndentWidth: 2
 CommentPragmas:  '^ IWYU pragma:'
 ForEachMacros:   [ foreach, Q_FOREACH, BOOST_FOREACH ]
 SortIncludes: false
